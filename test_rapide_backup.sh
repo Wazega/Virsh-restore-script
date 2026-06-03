@@ -32,7 +32,7 @@ else
 fi
 
 log "Lancement de la backup pour Influx"
-virtnbdbackup -d VM-Influx -l full -o "$DIR/$newest" --compress >> log_test_Gabin.log 2>&1
+virtnbdbackup -d VM-Influx -l full -o "$DIR/$newest" --compress >> "$LOG_FILE" 2>&1
 log "Fin de la backup pour Influx"
 
 log "================================================================="
@@ -50,7 +50,7 @@ else
 fi
 
 log "Lancement de la backup pour SQL"
-virtnbdbackup -d VM-SQL -l full -o "$DIR/$newest" --compress >> log_test_Gabin.log 2>&1
+virtnbdbackup -d VM-SQL -l full -o "$DIR/$newest" --compress >> "$LOG_FILE" 2>&1
 log "Fin de la backup pour SQL"
 
 
