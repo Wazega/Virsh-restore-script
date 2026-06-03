@@ -10,7 +10,7 @@ DIR_LOCAL="/data/local_backup/$vm_to_backup"
 if [ -z "$(ls -A "$DIR_LOCAL")" ]
 then
     newest=$(date +"%Y-%m-%d-%H-%M-%S")
-    mkdir -p "$DIR_LOCAL/$newest_backup"
+    mkdir -p "$DIR_LOCAL/$newest"
 else
     newest=$(ls "$DIR_LOCAL" | sort | tail -n 1)
 fi

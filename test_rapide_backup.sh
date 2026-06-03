@@ -4,7 +4,9 @@ set -euo pipefail
 
 # Backup vers le NAS1 pour Influx, puis SQL
 
-LOG_FILE="/home/corsica/log_test_Gabin.log"
+LOG_FILE="/home/corsicasole/log_test_Gabin.log"
+
+echo "Lancement du fichier" > "$LOG_FILE"
 
 log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOG_FILE"
@@ -24,7 +26,7 @@ log "Création du repo"
 if [ -z "$(ls -A "$DIR")" ]
 then
     newest=$(date +"%Y-%m-%d")
-    mkdir -p "$DIR/$newest_backup"
+    mkdir -p "$DIR/$newest"
 else
     newest=$(ls "$DIR" | sort | tail -n 1)
 fi
@@ -32,6 +34,20 @@ fi
 log "Lancement de la backup pour Influx"
 # virtnbdbackup -d VM-Influx -l full -o "$DIR_LOCAL/$newest" --compress >> log_test_Gabin.log 2>&1
 log "Fin de la backup pour Influx"
+
+log "================================================================="
+
+log "Backup de la VM-SQL"
+DIR="/mnt/nas1/VM-SQL"
+
+log "Création du repo"
+if [ -z "$(ls -A "$DIR")" ]
+then
+    newest=$(date +"%Y-%m-%d")
+    mkdir -p "$DIR/$newest"
+else
+    newest=$(ls "$DIR" | sort | tail -n 1)
+fi
 
 log "Lancement de la backup pour SQL"
 # virtnbdbackup -d VM-SQL -l full -o "$DIR_LOCAL/$newest" --compress >> log_test_Gabin.log 2>&1
