@@ -6,7 +6,7 @@ set -euo pipefail
 
 LOG_FILE="/home/corsicasole/log_test_Gabin.log"
 
-echo "Lancement du fichier" > "$LOG_FILE"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Lancement du fichier" > "$LOG_FILE"
 
 log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOG_FILE"
@@ -32,7 +32,7 @@ else
 fi
 
 log "Lancement de la backup pour Influx"
-# virtnbdbackup -d VM-Influx -l full -o "$DIR_LOCAL/$newest" --compress >> log_test_Gabin.log 2>&1
+virtnbdbackup -d VM-Influx -l full -o "$DIR/$newest" --compress >> log_test_Gabin.log 2>&1
 log "Fin de la backup pour Influx"
 
 log "================================================================="
@@ -50,10 +50,12 @@ else
 fi
 
 log "Lancement de la backup pour SQL"
-# virtnbdbackup -d VM-SQL -l full -o "$DIR_LOCAL/$newest" --compress >> log_test_Gabin.log 2>&1
+virtnbdbackup -d VM-SQL -l full -o "$DIR/$newest" --compress >> log_test_Gabin.log 2>&1
 log "Fin de la backup pour SQL"
 
 
 umount /mnt/nas1
 log "umount fait"
+
+log "Fin du script"
 
