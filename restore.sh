@@ -133,7 +133,7 @@ virtnbdrestore -i "$BACKUP_DIR" -o "$DIR_QCOW2" --until "${backup[$backup_choice
 echo ""
 echo "Lancement de la VM restaurer: "
 echo "--------------------"
-xml_file="$(find "$DIR_QCOW2" -type f -name '*.xml' | head -n 1)"
+xml_file="$(find "$DIR_QCOW2" -maxdepth 1 -type f -name '*.xml' | head -n 1)"
 echo "$xml_file"
 virsh define "$xml_file"
 virsh start "$vm_name"
