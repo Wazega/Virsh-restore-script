@@ -128,8 +128,8 @@ echo ""
 echo "Lancement de la VM restaurer: "
 echo "--------------------"
 xml_file="$(find "$DIR_QCOW2" -type f -name '*.xml' | head -n 1)"
-# virsh define "$xml_file"
-# virsh start "$vm_name"
+virsh define "$xml_file"
+virsh start "$vm_name"
 
 
 rm -f "$xml_file"
