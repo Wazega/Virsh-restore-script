@@ -54,6 +54,9 @@ echo ""
 BACKUP_DIR="$DIR/$selected_file"
 CHECKPOINT_DIR="$BACKUP_DIR/checkpoints"
 
+echo "$CHECKPOINT_DIR"
+echo "$BACKUP_DIR"
+
 i=1
 
 backup=()
@@ -94,6 +97,8 @@ if [[ ${#qcow2_files[@]} -eq 0 ]]; then
   exit 1
 fi
 
+echo "$qcow2_files"
+
 
 # Stopper/Supprimer la VM actuelle pour permettre la restauration
 echo ""
@@ -108,6 +113,7 @@ virsh undefine "$vm_name" --remove-all-storage --delete-snapshots --checkpoints-
 
 # On prend le parent du premier fichier (en théorie il est commun c'est on respecte les installations)
 DIR_QCOW2=$(dirname "${qcow2_files[0]}")
+echo "$DIR_QCOW2"
 
 # Suppression des fichiers qcow2
 for file in "${qcow2_files[@]}"; do
@@ -128,6 +134,7 @@ echo ""
 echo "Lancement de la VM restaurer: "
 echo "--------------------"
 xml_file="$(find "$DIR_QCOW2" -type f -name '*.xml' | head -n 1)"
+echo "$xml_file"
 virsh define "$xml_file"
 virsh start "$vm_name"
 
