@@ -8,7 +8,7 @@ log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOG_FILE"
 }
 
-if [ "$(date +%u)" -eq 7 ]
+if [ "$(date +%u)" -eq 4 ]
 then
     log "Réalisation d'une backup FULL"
     mode="full"
@@ -40,7 +40,7 @@ do
     DIR="/mnt/nas1/$vm"
 
     log "Création du dossier de sauvegarde si il  n'est pas initialisé"
-    if [ -eq "$mode" "full"]
+    if [ "$mode" = "full" ]
     then
         log "Création d'un nouveau dossier pour la backup full"
         newest=$(date +"%Y-%m-%d")
@@ -69,7 +69,7 @@ do
     # fi
 
 
-    if [ -eq "$mode" "full"]
+    if [ "$mode" = "full" ]
     then
         log "Vérification du bon nombre de sauvegarde (3 sauvegardes maximun)"
         count=$(find "$DIR" -maxdepth 1 -mindepth 1 -type d | wc -l)
