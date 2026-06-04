@@ -24,20 +24,19 @@ then
 fi
 
 
-VM_LIST=(
-    "VM-Panorama"
-    "VM-Dev-Pano-SCADA"
-)
-
-#    "VM-Influx"
-#    "VM-SQL"
+# readarray -t VM_LIST < <(virsh list --all --name | grep -v '^$')
+VM_LIST=("VM-Backup")
 
 for vm in "${VM_LIST[@]}"
 do
     log "Procédure de la backup pour la VM $vm"
 
-    
     DIR="/mnt/nas1/$vm"
+
+    # Vérifier si le dossier est déjà créer, sinon le créer
+    mkdir -p "$DIR"
+
+    
 
     log "Création du dossier de sauvegarde si il  n'est pas initialisé"
     if [ "$mode" = "full" ]
@@ -61,12 +60,12 @@ do
     virtnbdbackup -d "$vm" -l "$mode" -o "$DIR/$newest" --compress >> "$LOG_FILE" 2>&1
     log "Backup fini pour cette $vm"
 
-    # date_of_the_day=$(date +"%Y-%m-%d")
-    # if [ "$newest" != "$date_of_the_day" ]
-    # then
-    #    log "Changement de la date pour le dossier"
-    #    mv "$newest" "$date_of_the_day"
-    # fi
+    date_of_the_day=$(date +"%Y-%m-%d")
+    if [ "$newest" != "$date_of_the_day" ]
+    then
+        log "Changement de la date pour le dossier"
+        mv "$newest" "$date_of_the_day"
+    fi
 
 
     if [ "$mode" = "full" ]
