@@ -2,28 +2,100 @@
 
 set -euo pipefail
 
-vm_to_backup="$1"
-backup_mode="$2"
+LOG_FILE="/var/log/backup.log"
 
-DIR_LOCAL="/data/local_backup/$vm_to_backup"
+log() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOG_FILE"
+}
 
-if [ -z "$(ls -A "$DIR_LOCAL")" ]
+if [ "$(date +%u)" -eq 7 ]
 then
-    newest=$(date +"%Y-%m-%d-%H-%M-%S")
-    mkdir -p "$DIR_LOCAL/$newest"
+    log "Réalisation d'une backup FULL"
+    mode="full"
 else
-    newest=$(ls "$DIR_LOCAL" | sort | tail -n 1)
+    mode="inc"
 fi
 
 
-virtnbdbackup -d "$vm_to_backup" -l "$2" -o "$DIR_LOCAL/$newest" --compress
+log "NAS1 mount on /mnt/nas1"
+if ! mountpoint -q /mnt/nas1
+then
+    mount -t nfs 10.100.50.1:/volume1/SCADA1 /mnt/nas1
+fi
 
-# mount le nas1
 
-# copier vers le nas1
+VM_LIST=(
+    "VM-Panorama"
+    "VM-Dev-Pano-SCADA"
+)
 
-# umount le nas1
+#    "VM-Influx"
+#    "VM-SQL"
 
-# mount le nas2
-# copier vers le nas2
-# umount le nas2
+for vm in "${VM_LIST[@]}"
+do
+    log "Procédure de la backup pour la VM $vm"
+
+    
+    DIR="/mnt/nas1/$vm"
+
+    log "Création du dossier de sauvegarde si il  n'est pas initialisé"
+    if [ -eq "$mode" "full"]
+    then
+        log "Création d'un nouveau dossier pour la backup full"
+        newest=$(date +"%Y-%m-%d")
+        mkdir -p "$DIR/$newest"
+    else
+        if [ -z "$(ls -A "$DIR")" ]
+        then
+            newest=$(date +"%Y-%m-%d")
+            mkdir -p "$DIR/$newest"
+        else
+            newest=$(ls "$DIR" | sort | tail -n 1)
+        fi
+    fi
+
+    log "Dossier de sauvegarder créer ou choisi : $newest"
+
+    log "Réalisation de la backup pour $vm"
+    virtnbdbackup -d "$vm" -l "$mode" -o "$DIR/$newest" --compress >> "$LOG_FILE" 2>&1
+    log "Backup fini pour cette $vm"
+
+    # date_of_the_day=$(date +"%Y-%m-%d")
+    # if [ "$newest" != "$date_of_the_day" ]
+    # then
+    #    log "Changement de la date pour le dossier"
+    #    mv "$newest" "$date_of_the_day"
+    # fi
+
+
+    if [ -eq "$mode" "full"]
+    then
+        log "Vérification du bon nombre de sauvegarde (3 sauvegardes maximun)"
+        count=$(find "$DIR" -maxdepth 1 -mindepth 1 -type d | wc -l)
+        if (( count >= 4 ))
+        then
+            oldest=$(find "$DIR" -maxdepth 1 -mindepth 1 -type d -printf '%f\n' | sort | head -n1)
+
+            log "Suppression du dossier le plus vieux pour ne garder que 3 semaines de sauvegardes"
+            log "Suppression du dossier $oldest"
+            rm -rf "$DIR/$oldest"
+        fi
+    fi
+
+    log "Fin de la procédure de la backup pour la VM $vm"
+
+done
+
+log "Fin des backups pour la journée"
+
+
+if mountpoint -q /mnt/nas1
+then
+    umount /mnt/nas1
+fi
+log "Dossier /mnt/nas1 à été umount"
+
+log "Fin du script pour la journée"
+
+
