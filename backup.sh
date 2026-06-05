@@ -4,17 +4,7 @@ set -euo pipefail
 
 
 LOG_FILE="/var/log/backup.log"
-
-log() {
-  echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOG_FILE"
-}
-
-
-log "NAS1 mount on /mnt/nas1"
-if ! mountpoint -q /mnt/nas1
-then
-    mount -t nfs 10.100.50.1:/volume1/SCADA1 /mnt/nas1
-fi
+PARENT_DIR="/mnt/nas1"
 
 VM_LIST=(
     "VM-Influx"
@@ -23,13 +13,26 @@ VM_LIST=(
     "VM-Dev-Pano-SCADA"
 )
 
+log() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOG_FILE"
+}
+
+
+log "NAS1 mount on $PARENT_DIR"
+if ! mountpoint -q "$PARENT_DIR"
+then
+    mount -t nfs 10.100.50.1:/volume1/SCADA1 "$PARENT_DIR"
+fi
+
+
+
 ID_VM=0
 
 for vm in "${VM_LIST[@]}"
 do
     log "[$vm] : Procédure de la backup pour la VM $vm"
 
-    DIR="/home/debian/tmp/$vm"
+    DIR="$PARENT_DIR/$vm"
     mkdir -p "$DIR"
 
 
@@ -65,10 +68,10 @@ done
 log "Fin des backups pour la journée"
 
 
-if mountpoint -q /mnt/nas1
+if mountpoint -q "$PARENT_DIR"
 then
-    umount /mnt/nas1
+    umount "$PARENT_DIR"
 fi
-log "Dossier /mnt/nas1 à été umount"
+log "Dossier $PARENT_DIR à été umount"
 
 log "Fin du script pour la journée"
