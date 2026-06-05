@@ -3,7 +3,7 @@
 set -euo pipefail
 
 
-LOG_FILE="/home/debian/backup.log"
+LOG_FILE="/var/log/backup.log"
 
 log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOG_FILE"
