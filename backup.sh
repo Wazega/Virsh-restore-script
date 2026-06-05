@@ -40,7 +40,7 @@ do
     mkdir -p "$DIR/$bucket_id"
 
     log "[$vm] : Réalisation de la backup pour $vm"
-    # virtnbdbackup -d "$vm" -l auto -o "$DIR/$bucket_id" --compress >> "$LOG_FILE" 2>&1
+    virtnbdbackup -d "$vm" -l auto -o "$DIR/$bucket_id" --compress >> "$LOG_FILE" 2>&1
     log "[$vm] : Backup fini pour cette $vm"
 
 
