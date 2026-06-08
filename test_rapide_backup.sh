@@ -1,61 +1,214 @@
 #!/bin/bash
 
-set -euo pipefail
+-set euo pipefail
 
-# Backup vers le NAS1 pour Influx, puis SQL
+echo "===================="
+echo "Restauration d'une backup"
+echo "===================="
+echo ""
 
-LOG_FILE="/home/corsicasole/log_test_Gabin.log"
+# =========================
+# CHOIX DU NAS
+# =========================
+echo "Choix du NAS à monter:"
+echo "--------------------"
+nas_chose=$(gum choose "nas1" "nas2") || exit 1
+echo "NAS choisi: $nas_chose"
+echo ""
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Lancement du fichier" > "$LOG_FILE"
-
-log() {
-  echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOG_FILE"
-}
-
-log "lancement des backup...."
-
-log "NAS1 mount on /mnt/nas1"
-mount -t nfs 10.100.50.1:/volume1/SCADA1 /mnt/nas1
-
-log "Backup de Influx"
-
-
-DIR="/mnt/nas1/VM-Influx"
-
-log "Création du repo"
-if [ -z "$(ls -A "$DIR")" ]
-then
-    newest=$(date +"%Y-%m-%d")
-    mkdir -p "$DIR/$newest"
+# =========================
+# DéTERMINER L'IP
+# =========================
+if [[ "$nas_chose" == "nas1" ]]; then
+    ip="10.100.50.1"
 else
-    newest=$(ls "$DIR" | sort | tail -n 1)
+    ip="10.100.50.11"
 fi
 
-log "Lancement de la backup pour Influx"
-virtnbdbackup -d VM-Influx -l full -o "$DIR/$newest" --compress >> "$LOG_FILE" 2>&1
-log "Fin de la backup pour Influx"
+# =========================
+# RéCUPéRER LES EXPORTS NFS
+# =========================
+mapfile -t folders < <(showmount -e "$ip" | awk 'NR>1 {print $1}')
 
-log "================================================================="
+# =========================
+# CHOIX DU DOSSIER
+# =========================
+echo "Choix du dossier à monter:"
+echo "--------------------"
+folder_chose=$(printf "%s\n" "${folders[@]}" | gum choose) || exit 1
+echo "Dossier choisi: $folder_chose"
+echo ""
 
-log "Backup de la VM-SQL"
-DIR="/mnt/nas1/VM-SQL"
+# =========================
+# MONTER LE VOLUME
+# =========================
+REMOTE_DIR="$folder_chose"
+DIR="/mnt/$nas_chose"
 
-log "Création du repo"
-if [ -z "$(ls -A "$DIR")" ]
+if ! mountpoint -q "$DIR"
 then
-    newest=$(date +"%Y-%m-%d")
-    mkdir -p "$DIR/$newest"
-else
-    newest=$(ls "$DIR" | sort | tail -n 1)
+    mount -t nfs "$ip":"$REMOTE_DIR" "$DIR"
 fi
 
-log "Lancement de la backup pour SQL"
-virtnbdbackup -d VM-SQL -l full -o "$DIR/$newest" --compress >> "$LOG_FILE" 2>&1
-log "Fin de la backup pour SQL"
+
+# =========================
+# CHOIX DE LA VM
+# =========================
+echo "Choix de la VM à restaurer:"
+echo "--------------------"
+vm_chose=$(find "$DIR" -maxdepth 1 -type d -printf "%f\n" | grep -v '^#recycle$' | grep -v "$nas_chose" | gum choose) || exit 1
+echo "VM choisie : $vm_chose"
+echo ""
 
 
-umount /mnt/nas1
-log "umount fait"
+weeks_display=()
+weeks_paths=()
 
-log "Fin du script"
+# =========================
+# CONSTRUCTION DES SEMAINES
+# =========================
+for f in "$DIR/$vm_chose"/*; do
+    checkpoint_dir="$f/checkpoints"
+    [ -d "$checkpoint_dir" ] || continue
 
+    initial_file=$(find "$checkpoint_dir" -type f -printf '%T@ %p\n' | sort -n | head -n 1 | cut -d' ' -f2-)
+    last_file=$(find "$checkpoint_dir" -type f -printf '%T@ %p\n' | sort -nr | head -n 1 | cut -d' ' -f2-)
+
+    [ -z "$initial_file" ] && continue
+
+    initial_modif=$(stat -c %y "$initial_file" | cut -d' ' -f1)
+    last_modif=$(stat -c %y "$last_file" | cut -d' ' -f1)
+
+    weeks_display+=("$initial_modif → $last_modif")
+    weeks_paths+=("$checkpoint_dir")
+done
+
+# =========================
+# CHOIX DE LA SEMAINE
+# =========================
+echo "Choix de la période à restaurer:"
+echo "--------------------"
+week_choice=$(printf "%s\n" "${weeks_display[@]}" | gum choose) || exit 1
+echo "Période choisie: $week_choice"
+echo ""
+
+
+selected_dir=""
+
+for i in "${!weeks_display[@]}"; do
+    [[ "${weeks_display[$i]}" == "$week_choice" ]] && selected_dir="${weeks_paths[$i]}"
+done
+
+# =========================
+# CONSTRUCTION DES FICHIERS AVEC DATE
+# =========================
+files_display=()
+files_paths=()
+
+for file in "$selected_dir"/*; do
+    [ -f "$file" ] || continue
+
+    file_date=$(stat -c %y "$file" | cut -d' ' -f1)
+    file_name=$(basename "$file")
+
+    files_display+=("$file_date | $file_name")
+    files_paths+=("$file")
+done
+
+# =========================
+# CHOIX DU FICHIER
+# =========================
+echo "Choix du jour à restaurer:"
+echo "--------------------"
+file_choice=$(printf "%s\n" "${files_display[@]}" | gum choose) || exit 1
+echo "Jour choisi: $file_choice"
+echo ""
+
+
+selected_file=""
+
+for i in "${!files_display[@]}"; do
+    [[ "${files_display[$i]}" == "$file_choice" ]] && selected_file="${files_paths[$i]}"
+done
+
+# =========================
+# CONFIRMATION DES CHOIX
+# =========================
+stat_selected_file=$(stat -c %y "$selected_file" | cut -d' ' -f1)
+tab=$'\t'
+
+echo "Confirmation des paramètres:"
+echo "--------------------"
+echo "$tab NAS    : $tab $nas_chose"
+echo "$tab FOLDER : $tab $folder_chose"
+echo "$tab VM     : $tab $vm_chose"
+echo "$tab File   : $tab $selected_file"
+echo "$tab Date   : $tab $stat_selected_file"
+echo ""
+gum confirm "Confirmer les paramètres et commencer la restauration ?" && echo "Lancement de la restauration" || { echo "Procédure annulée"; exit 1; }
+
+
+# =========================
+# RECUPERATION DES PATH POUR LES FICHIER QCOW2
+# =========================
+mapfile -t qcow2_files < <(
+  virsh domblklist "$vm_chose" --details | awk '$4 ~ /\.qcow2$/ {print $4}'
+)
+if [[ ${#qcow2_files[@]} -eq 0 ]]; then
+  echo "Aucun fichier qcow2 trouvé"
+  exit 1
+fi
+
+# echo "$qcow2_files"
+
+
+# =========================
+# SUPPRIMER VM ACTUELLE POUR PERMETTRE RESTAURATION
+# =========================
+echo ""
+echo "Arrêt de l'ancienne VM: "
+echo "--------------------"
+
+virsh destroy "$vm_chose" || true
+virsh undefine "$vm_chose" --remove-all-storage --delete-snapshots --checkpoints-metadata --nvram || true
+
+
+# =========================
+# SUPPRESSION DES QCOW2 DE LA VM
+# =========================
+DIR_QCOW2=$(dirname "${qcow2_files[0]}")
+echo "$DIR_QCOW2"
+
+for file in "${qcow2_files[@]}"; do
+  echo "Suppression : $file"
+  rm -f "$file"
+done
+
+
+# =========================
+# RESTAURER LA VM
+# =========================
+echo ""
+echo "Restauration de la VM depuis la backup $selected_file: "
+echo "--------------------"
+BACKUP_DIR=$(echo "$selected_file" | sed 's|/checkpoints/.*||')
+right_path_until=$(basename "$selected_file")
+virtnbdrestore -i "$BACKUP_DIR" -o "$DIR_QCOW2" --until "$right_path_until"
+
+
+# =========================
+# RELANCER LA VM
+# =========================
+echo ""
+echo "Lancement de la VM restaurer: "
+echo "--------------------"
+xml_file="$(find "$DIR_QCOW2" -maxdepth 1 -type f -name '*.xml' | head -n 1)"
+echo "$xml_file"
+virsh define "$xml_file"
+virsh start "$vm_chose"
+
+
+rm -f "$xml_file"
+
+echo ""
+echo "Restauration terminée avec succès !"

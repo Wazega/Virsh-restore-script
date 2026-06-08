@@ -1,142 +1,211 @@
 #!/bin/bash
 
-set -euo pipefail
+-set euo pipefail
 
 echo "===================="
 echo "Restauration d'une backup"
 echo "===================="
-echo " "
+echo ""
+
+# =========================
+# CHOIX DU NAS
+# =========================
+echo "Choix du NAS à monter:"
+echo "--------------------"
+nas_chose=$(gum choose "nas1" "nas2") || exit 1
+echo "NAS choisi: $nas_chose"
+echo ""
+
+# =========================
+# DéTERMINER L'IP
+# =========================
+if [[ "$nas_chose" == "nas1" ]]; then
+    ip="10.100.50.1"
+else
+    ip="10.100.50.11"
+fi
+
+# =========================
+# RéCUPéRER LES EXPORTS NFS
+# =========================
+mapfile -t folders < <(showmount -e "$ip" | awk 'NR>1 {print $1}')
+
+# =========================
+# CHOIX DU DOSSIER
+# =========================
+echo "Choix du dossier à monter:"
+echo "--------------------"
+folder_chose=$(printf "%s\n" "${folders[@]}" | gum choose) || exit 1
+echo "Dossier choisi: $folder_chose"
+echo ""
+
+# =========================
+# MONTER LE VOLUME
+# =========================
+REMOTE_DIR="$folder_chose"
+DIR="/mnt/$nas_chose"
+
+if ! mountpoint -q "$DIR"
+then
+    mount -t nfs "$ip":"$REMOTE_DIR" "$DIR"
+fi
 
 
+# =========================
+# CHOIX DE LA VM
+# =========================
 echo "Choix de la VM à restaurer:"
 echo "--------------------"
-i=1
-vm_list=()
-
-while read -r vm
-do
-    # virsh peut renvoyer des lignes vides → on les ignore
-    [[ -z "$vm" ]] && continue
-
-    vm_list[$i]="$vm"
-    echo "$i) $vm"
-    ((i++))
-done < <(virsh list --all --name)
-read -p "Choix de la VM: " number_vm_choice
-vm_chose="${vm_list[$number_vm_choice]}"
-
-
-# A ajouter le VM chose dans le file
-DIR="/data/tmp_SCADA1/$vm_chose"
-
-files=()
-i=1
+vm_chose=$(find "$DIR" -maxdepth 1 -type d -printf "%f\n" | grep -v '^#recycle$' | grep -v "$nas_chose" | gum choose) || exit 1
+echo "VM choisie : $vm_chose"
 echo ""
-echo "Choix de la semaine à restorer: "
-echo "--------------------"
 
-for file in "$DIR"/*
-do
-  file=$(basename "$file")
-  files[$i]="$file"
-  echo "$i. $file"
-  ((i++))
+
+weeks_display=()
+weeks_paths=()
+
+# =========================
+# CONSTRUCTION DES SEMAINES
+# =========================
+for f in "$DIR/$vm_chose"/*; do
+    checkpoint_dir="$f/checkpoints"
+    [ -d "$checkpoint_dir" ] || continue
+
+    initial_file=$(find "$checkpoint_dir" -type f -printf '%T@ %p\n' | sort -n | head -n 1 | cut -d' ' -f2-)
+    last_file=$(find "$checkpoint_dir" -type f -printf '%T@ %p\n' | sort -nr | head -n 1 | cut -d' ' -f2-)
+
+    [ -z "$initial_file" ] && continue
+
+    initial_modif=$(stat -c %y "$initial_file" | cut -d' ' -f1)
+    last_modif=$(stat -c %y "$last_file" | cut -d' ' -f1)
+
+    weeks_display+=("$initial_modif → $last_modif")
+    weeks_paths+=("$checkpoint_dir")
 done
 
-read -p "Choisis un numéro : " choix
-
-selected_file="${files[$choix]}"
-
-echo ""
-echo "Selection de la semaine $selected_file"
-echo ""
-
-BACKUP_DIR="$DIR/$selected_file"
-CHECKPOINT_DIR="$BACKUP_DIR/checkpoints"
-
-echo "$CHECKPOINT_DIR"
-echo "$BACKUP_DIR"
-
-i=1
-
-backup=()
-
-echo "Choissisez le jour de la restauration :"
+# =========================
+# CHOIX DE LA SEMAINE
+# =========================
+echo "Choix de la période à restaurer:"
 echo "--------------------"
-
-for file in "$CHECKPOINT_DIR"/*
-do
-  [ -e "$file" ] || continue
-
-  mod_date=$(stat -c "%y" "$file" | cut -d'.' -f1)
-  name=$(basename "${file%.xml}")
-
-  echo "$i) $mod_date - $name"
-
-  backup[$i]="$name"
-
-  ((i++))
-done
-read -p "Choisis un backup : " backup_choice
-
+week_choice=$(printf "%s\n" "${weeks_display[@]}" | gum choose) || exit 1
+echo "Période choisie: $week_choice"
 echo ""
-echo "Vous avez choisit : ${backup[$backup_choice]}"
 
 
-# Récupération du nom de la VM
-cpt_file="$(find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.cpt' -printf '%f\n')"
-vm_name="${cpt_file%.cpt}"
+selected_dir=""
+
+for i in "${!weeks_display[@]}"; do
+    [[ "${weeks_display[$i]}" == "$week_choice" ]] && selected_dir="${weeks_paths[$i]}"
+done
+
+# =========================
+# CONSTRUCTION DES FICHIERS AVEC DATE
+# =========================
+files_display=()
+files_paths=()
+
+for file in "$selected_dir"/*; do
+    [ -f "$file" ] || continue
+
+    file_date=$(stat -c %y "$file" | cut -d' ' -f1)
+    file_name=$(basename "$file")
+
+    files_display+=("$file_date | $file_name")
+    files_paths+=("$file")
+done
+
+# =========================
+# CHOIX DU FICHIER
+# =========================
+echo "Choix du jour à restaurer:"
+echo "--------------------"
+file_choice=$(printf "%s\n" "${files_display[@]}" | gum choose) || exit 1
+echo "Jour choisi: $file_choice"
+echo ""
 
 
-# Récupération du path de stockage des fichier qcow2
+selected_file=""
+
+for i in "${!files_display[@]}"; do
+    [[ "${files_display[$i]}" == "$file_choice" ]] && selected_file="${files_paths[$i]}"
+done
+
+# =========================
+# CONFIRMATION DES CHOIX
+# =========================
+stat_selected_file=$(stat -c %y "$selected_file" | cut -d' ' -f1)
+tab=$'\t'
+
+echo "Confirmation des paramètres:"
+echo "--------------------"
+echo "$tab NAS    : $tab $nas_chose"
+echo "$tab FOLDER : $tab $folder_chose"
+echo "$tab VM     : $tab $vm_chose"
+echo "$tab File   : $tab $selected_file"
+echo "$tab Date   : $tab $stat_selected_file"
+echo ""
+gum confirm "Confirmer les paramètres et commencer la restauration ?" && echo "Lancement de la restauration" || { echo "Procédure annulée"; exit 1; }
+
+
+# =========================
+# RECUPERATION DES PATH POUR LES FICHIER QCOW2
+# =========================
 mapfile -t qcow2_files < <(
-  virsh domblklist "$vm_name" --details | awk '$4 ~ /\.qcow2$/ {print $4}'
+  virsh domblklist "$vm_chose" --details | awk '$4 ~ /\.qcow2$/ {print $4}'
 )
 if [[ ${#qcow2_files[@]} -eq 0 ]]; then
   echo "Aucun fichier qcow2 trouvé"
   exit 1
 fi
 
-echo "$qcow2_files"
+# echo "$qcow2_files"
 
 
-# Stopper/Supprimer la VM actuelle pour permettre la restauration
+# =========================
+# SUPPRIMER VM ACTUELLE POUR PERMETTRE RESTAURATION
+# =========================
 echo ""
 echo "Arrêt de l'ancienne VM: "
 echo "--------------------"
 
-virsh destroy "$vm_name" || true
-virsh undefine "$vm_name" --remove-all-storage --delete-snapshots --checkpoints-metadata --nvram || true
+virsh destroy "$vm_chose" || true
+virsh undefine "$vm_chose" --remove-all-storage --delete-snapshots --checkpoints-metadata --nvram || true
 
 
-
-
-# On prend le parent du premier fichier (en théorie il est commun c'est on respecte les installations)
+# =========================
+# SUPPRESSION DES QCOW2 DE LA VM
+# =========================
 DIR_QCOW2=$(dirname "${qcow2_files[0]}")
 echo "$DIR_QCOW2"
 
-# Suppression des fichiers qcow2
 for file in "${qcow2_files[@]}"; do
   echo "Suppression : $file"
   rm -f "$file"
 done
 
 
-# Restaurer la VM
+# =========================
+# RESTAURER LA VM
+# =========================
 echo ""
-echo "Restauration de la VM depuis la backup ${backup[$backup_choice]}: "
+echo "Restauration de la VM depuis la backup $selected_file: "
 echo "--------------------"
-virtnbdrestore -i "$BACKUP_DIR" -o "$DIR_QCOW2" --until "${backup[$backup_choice]}"
+BACKUP_DIR=$(echo "$selected_file" | sed 's|/checkpoints/.*||')
+right_path_until=$(basename "$selected_file")
+virtnbdrestore -i "$BACKUP_DIR" -o "$DIR_QCOW2" --until "$right_path_until"
 
 
-# Relancer la VM grâce au xml
+# =========================
+# RELANCER LA VM
+# =========================
 echo ""
 echo "Lancement de la VM restaurer: "
 echo "--------------------"
 xml_file="$(find "$DIR_QCOW2" -maxdepth 1 -type f -name '*.xml' | head -n 1)"
 echo "$xml_file"
 virsh define "$xml_file"
-virsh start "$vm_name"
+virsh start "$vm_chose"
 
 
 rm -f "$xml_file"
