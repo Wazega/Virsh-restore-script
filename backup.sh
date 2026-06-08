@@ -5,6 +5,7 @@ set -euo pipefail
 
 LOG_FILE="/var/log/backup.log"
 PARENT_DIR="/mnt/nas1"
+REMOTE_DIR="/volume1/SCADA1"
 
 VM_LIST=(
     "VM-Influx"
@@ -21,7 +22,7 @@ log() {
 log "NAS1 mount on $PARENT_DIR"
 if ! mountpoint -q "$PARENT_DIR"
 then
-    mount -t nfs 10.100.50.1:/volume1/SCADA1 "$PARENT_DIR"
+    mount -t nfs 10.100.50.1:"$REMOTE_DIR" "$PARENT_DIR"
 fi
 
 
