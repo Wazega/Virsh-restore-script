@@ -8,16 +8,6 @@ PARENT_DIR="/mnt/nas1"
 REMOTE_DIR="/volume1/SCADA1"
 IP="10.100.50.1"
 
-# ========================
-# NE PAS CHANGER L'ORDRE !!!
-# ========================
-VM_LIST=(
-    "VM-Influx"
-    "VM-Panorama"
-    "VM-SQL"
-    "VM-Dev-Pano-SCADA"
-)
-
 log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOG_FILE"
 }
@@ -29,6 +19,19 @@ then
     mount -t nfs "$IP":"$REMOTE_DIR" "$PARENT_DIR"
 fi
 
+# ========================
+# Liste VM disponible sur l'host
+# ========================
+source /etc/backup/vm-list.conf
+
+HOSTNAME=$(hostname)
+
+if [[ -z "${VM_MAP[$HOSTNAME]+x}" ]]; then
+  echo "Hostname inconnu: $HOSTNAME"
+  exit 1
+fi
+
+IFS=' ' read -r -a VM_LIST <<< "${VM_MAP[$HOSTNAME]}"
 
 
 ID_VM=0
