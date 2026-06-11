@@ -52,7 +52,7 @@ IFS=' ' read -r -a VM_LIST <<< "${VM_MAP[$HOSTNAME]}"
 # ========================
 # Choix VM(s)
 # ========================
-SELECTED_VMS=$(printf "%s\n" $VM_LIST \
+SELECTED_VMS=$(printf "%s\n" "${VM_LIST[@]}" \
   | gum choose --no-limit --header="Choisis les VM à sauvegarder")
 
 if [[ -z "$SELECTED_VMS" ]]; then
