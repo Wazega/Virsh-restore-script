@@ -8,6 +8,9 @@ PARENT_DIR="/mnt/nas1"
 REMOTE_DIR="/volume1/SCADA1"
 IP="10.100.50.1"
 
+# ========================
+# NE PAS CHANGER L'ORDRE !!!
+# ========================
 VM_LIST=(
     "VM-Influx"
     "VM-Panorama"
