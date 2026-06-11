@@ -75,7 +75,7 @@ for vm in $SELECTED_VMS; do
 
   log "[$vm] Backup dans $DIR/$bucket_id"
 
-  virtnbdbackup -d "$vm" -l auto -o "$DIR/$bucket_id" --compress >> "$LOG_FILE" 2>&1
+  virtnbdbackup -d "$vm" -l auto -o "$DIR/$bucket_id" --compress
 
   log "[$vm] Backup terminé"
 
