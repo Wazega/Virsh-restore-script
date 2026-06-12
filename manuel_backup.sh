@@ -5,6 +5,7 @@ set -euo pipefail
 # NAS disponibles
 # ========================
 NAS_OPTIONS=(
+  "NAS1|10.100.50.1|/volume1/ADM|/mnt/nas1"
   "NAS1|10.100.50.1|/volume1/SCADA1|/mnt/nas1"
   "NAS2|10.100.50.11|/volume1/SCADA2|/mnt/nas2"
 )
