@@ -161,12 +161,44 @@ gum confirm "Confirmer les paramètres et commencer la restauration ?" && echo "
 mapfile -t qcow2_files < <(
   virsh domblklist "$vm_chose" --details | awk '$4 ~ /\.qcow2$/ {print $4}'
 )
-if [[ ${#qcow2_files[@]} -eq 0 ]]; then
-  echo "Aucun fichier qcow2 trouvé"
-  exit 1
+
+
+# =========================
+# CHOIX DU PATH SI LA VM N'EST PLUS SUR LA MACHINE
+# =========================
+if [[ ${#qcow2_files[@]} -eq 0 ]]
+then
+    echo "VM non existante sur cette machine"
+    gum confirm "Voulez-vous ajouter la VM $vm_chose sur cette machine ?" || exit 1
+
+    echo "Chemin par défaut proposé pour le disque de la VM : $default_qcow2"
+    echo ""
+
+    if gum confirm "Voulez-vous utiliser ce chemin ? ($default_qcow2)"
+    then
+        qcow2_files=("$default_qcow2")
+    else
+        user_qcow2_path=$(gum input --placeholder "Entrez un chemin" --prompt "Path > ")
+
+        # Vérification simple
+        if [ -z "$user_qcow2_path" ]
+        then
+            echo "Aucun chemin fourni."
+            exit 1
+        fi
+
+        # vérification que le chemin existe, sinon le créer
+        if mkdir -p "$user_qcow2_path"
+        then
+            echo "Répertoire valide"
+            qcow2_files=("$user_qcow2_path")
+        else
+            echo "Erreur lors de la création du répertoire" >&2
+            exit 1
+        fi
+    fi
 fi
 
-# echo "$qcow2_files"
 
 
 # =========================
@@ -199,7 +231,7 @@ echo ""
 echo "Restauration de la VM depuis la backup $selected_file: "
 echo "--------------------"
 BACKUP_DIR=$(echo "$selected_file" | sed 's|/checkpoints/.*||')
-right_path_until=$(basename "$selected_file")
+right_path_until=$(basename "$selected_file" .xml)
 virtnbdrestore -i "$BACKUP_DIR" -o "$DIR_QCOW2" --until "$right_path_until"
 
 
