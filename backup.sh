@@ -60,7 +60,7 @@ do
     count=$(find "$DIR" -maxdepth 1 -mindepth 1 -type d | wc -l)
     if (( count >= 4 ))
     then
-        oldest=$(find "$DIR" -maxdepth 1 -mindepth 1 -type d -printf '%f\n' | sort | head -n1)
+        oldest=$(find "$DIR" -maxdepth 1 -mindepth 1 -type d -printf '%T@|%f\n' | sort -n | head -n1 | cut -d'|' -f2-)
 
         log "[$vm] : Suppression du dossier le plus vieux pour ne garder que 3 semaines de sauvegardes"
         log "[$vm] : Suppression du dossier $oldest"

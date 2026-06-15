@@ -2,6 +2,13 @@
 
 -set euo pipefail
 
+
+if [ "$EUID" -ne 0 ]; then
+    echo "Ce script doit être exécuté en tant que root." >&2
+    exit 1
+fi
+
+
 echo "===================="
 echo "Restauration d'une backup"
 echo "===================="

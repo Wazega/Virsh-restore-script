@@ -5,10 +5,15 @@ set -euo pipefail
 # NAS disponibles
 # ========================
 NAS_OPTIONS=(
-  "NAS1|10.100.50.1|/volume1/ADM|/mnt/nas1"
-  "NAS1|10.100.50.1|/volume1/SCADA1|/mnt/nas1"
-  "NAS2|10.100.50.11|/volume1/SCADA2|/mnt/nas2"
+  "SRV-ADM : NAS1|10.100.50.1|/volume1/ADM|/mnt/nas1"
+  "SRV-01  : NAS1|10.100.50.1|/volume1/SCADA1|/mnt/nas1"
+  "SRV-02  : NAS2|10.100.50.11|/volume1/SCADA2|/mnt/nas2"
 )
+
+if [ "$EUID" -ne 0 ]; then
+    echo "Ce script doit être exécuté en tant que root." >&2
+    exit 1
+fi
 
 log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - $*"
@@ -20,7 +25,9 @@ log() {
 NAS_CHOICE=$(printf "%s\n" "${NAS_OPTIONS[@]}" \
   | gum choose --header="Choisis le NAS de backup")
 
-IFS="|" read -r NAS_NAME NAS_IP NAS_REMOTE NAS_MOUNT <<< "$NAS_CHOICE"
+NAS_DATA="${NAS_CHOICE#*: }"
+
+IFS="|" read -r NAS_NAME NAS_IP NAS_REMOTE NAS_MOUNT <<< "$NAS_DATA"
 
 log "NAS choisi: $NAS_NAME ($NAS_IP)"
 
