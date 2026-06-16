@@ -74,7 +74,7 @@ weeks_display=()
 weeks_paths=()
 
 # =========================
-# CONSTRUCTION DES SEMAINES
+# CONSTRUCTION DES SEMAINES A PARTIR DES BUCKETS
 # =========================
 for f in "$DIR/$vm_chose"/*; do
     checkpoint_dir="$f/checkpoints"
@@ -107,6 +107,8 @@ selected_dir=""
 for i in "${!weeks_display[@]}"; do
     [[ "${weeks_display[$i]}" == "$week_choice" ]] && selected_dir="${weeks_paths[$i]}"
 done
+
+echo "$selected_dir"
 
 # =========================
 # CONSTRUCTION DES FICHIERS AVEC DATE
@@ -248,8 +250,17 @@ echo "$xml_file"
 virsh define "$xml_file"
 virsh start "$vm_chose"
 
-
+# =========================
+# SUPPRIMER LE XML TEMPORAIRE
+# =========================
 rm -f "$xml_file"
+
+
+# =========================
+# CHANGER LE NOM DU BUCKET
+# =========================
+bucket_dir="${selected_dir%/checkpoints}"
+mv "$bucket_dir" "${bucket_dir}_old" 
 
 # =========================
 # UMOUNT LE NFS
