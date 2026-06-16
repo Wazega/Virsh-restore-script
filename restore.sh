@@ -2,7 +2,9 @@
 
 -set euo pipefail
 
-
+# =========================
+# VéRIFICATION LANCEMENT EN ROOT
+# =========================
 if [ "$EUID" -ne 0 ]; then
     echo "Ce script doit être exécuté en tant que root." >&2
     exit 1
@@ -248,6 +250,14 @@ virsh start "$vm_chose"
 
 
 rm -f "$xml_file"
+
+# =========================
+# UMOUNT LE NFS
+# =========================
+if mountpoint -q "$DIR"
+then
+    umount "$DIR"
+fi
 
 echo ""
 echo "Restauration terminée avec succès !"
