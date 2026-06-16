@@ -70,10 +70,12 @@ do
     then
         log "ERREUR: virtnbdbackup a échoué pour VM=$vm"
         MAIL_CONTENT=$(cat <<EOF
-SRV:        $HOSTNAME
-VM:         $vm
-Date:       $(date "+%H:%M:%S   %A %d %B %Y" | LANG=fr_FR.UTF-8 cat)
-STATUS:     ECHEC
+SRV:            $HOSTNAME
+VM:             $vm
+Date:           $(date "+%H:%M:%S   %A %d %B %Y" | LANG=fr_FR.UTF-8 cat)
+STATUS:         ECHEC
+
+Le backup quotidien de la VM : $vm à échoué. 
 
 Besoin d'une intervention humaine afin d'éviter de compromettre toutes les autres sauvegardes.
 EOF
