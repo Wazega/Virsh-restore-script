@@ -68,10 +68,19 @@ if [[ -z "$SELECTED_VMS" ]]; then
 fi
 
 # ========================
+# RéCUPéRATION DE l'ID DE LA VM
+# ========================
+for vm in $SELECTED_VMS; do
+  for i in "${!VM_LIST[@]}"; do
+    if [[ "${VM_LIST[$i]}" == "$vm" ]]; then
+      ID_VM=$i
+    fi
+  done
+done
+
+# ========================
 # Backup
 # ========================
-ID_VM=0
-
 for vm in $SELECTED_VMS; do
   log "[$vm] Début backup"
 
