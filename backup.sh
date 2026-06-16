@@ -7,6 +7,8 @@ LOG_FILE="/var/log/backup.log"
 PARENT_DIR="/mnt/nas1"
 REMOTE_DIR="/volume1/SCADA1"
 IP="10.100.50.1"
+DEST_MAIL="gabin.dubois@spikeelabs.fr"
+
 
 log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOG_FILE"
@@ -36,6 +38,14 @@ IFS=' ' read -r -a VM_LIST <<< "${VM_MAP[$HOSTNAME]}"
 
 ID_VM=0
 
+# ========================
+# Désactiver l'arrêt si erreur
+# ========================
+set +e
+
+# ========================
+# Réalise les backups
+# ========================
 for vm in "${VM_LIST[@]}"
 do
     log "[$vm] : Procédure de la backup pour la VM $vm"
@@ -52,6 +62,24 @@ do
 
     log "[$vm] : Réalisation de la backup pour $vm"
     virtnbdbackup -d "$vm" -l auto -o "$DIR/$bucket_id" --compress >> "$LOG_FILE" 2>&1
+
+    # ========================
+    # Vérifie qu'il n'y a pas eu d'erreur
+    # ========================
+    if [ $? -ne 0 ]
+    then
+        log "ERREUR: virtnbdbackup a échoué pour VM=$vm"
+        MAIL_CONTENT=$(cat <<EOF
+VM:         $vm
+Date :      $(date)
+STATUS:     ÉCHÉC
+
+Besoin d'une intervention humaine afin d'éviter de compromettre toutes les autres sauvegardes.
+EOF
+)
+        echo "$MAIL_CONTENT" | mail -s "BACKUP $vm ÉCHOUÉ" $DEST_MAIL
+    fi
+
     log "[$vm] : Backup fini pour cette $vm"
 
 
@@ -72,6 +100,11 @@ do
 
 done
 
+
+# ========================
+# Activer l'arrêt si erreur
+# ========================
+set -e
 
 log "Fin des backups pour la journée"
 
