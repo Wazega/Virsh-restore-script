@@ -97,13 +97,17 @@ for vm in $SELECTED_VMS; do
   log "[$vm] Backup terminé"
 
   # rotation (3 dossiers max)
-  count=$(find "$DIR" -maxdepth 1 -mindepth 1 -type d | wc -l)
+  mapfile -t nb_buckets < <(find "$DIR" -maxdepth 1 -mindepth 1 -type d -printf '%f\n' | sed -E 's/(_old)+$//' | sort -n | uniq)
+  count=${#nb_buckets[@]}
+  if (( count >= 3 ))
+  then
+      oldest=$(find "$DIR" -maxdepth 1 -mindepth 1 -type d -printf '%T@|%f\n' | sed -E 's/(_old)+$//' | sort -n | head -n1 | cut -d'|' -f2-)
 
-  if (( count >= 4 )); then
-    oldest=$(find "$DIR" -maxdepth 1 -mindepth 1 -type d -printf '%f\n' | sort | head -n1)
+      log "[$vm] : Suppression du dossier le plus vieux pour ne garder que 3 semaines de sauvegardes"
+      log "[$vm] : Suppression du dossier $oldest"
+      rm -rf "${DIR:?}/${oldest:?}"
+      rm -rf "${DIR:?}/${oldest:?}"_old*
 
-    log "[$vm] Suppression ancien backup $oldest"
-    rm -rf "$DIR/$oldest"
   fi
 
   ID_VM=$((ID_VM + 1))

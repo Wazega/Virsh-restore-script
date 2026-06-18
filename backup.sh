@@ -8,7 +8,7 @@ PARENT_DIR="/mnt/nas1"
 REMOTE_DIR="/volume1/SCADA1"
 IP="10.100.50.1"
 DEST_MAIL="gabin.dubois@spikeelabs.fr"
-
+# "-c gabin.dubois@spikeelabs.fr,cc2@example.com mailfinal@example.com"
 
 log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOG_FILE"
@@ -72,8 +72,8 @@ do
         MAIL_CONTENT=$(cat <<EOF
 SRV:            $HOSTNAME
 VM:             $vm
-Date:           $(date "+%H:%M:%S   %A %d %B %Y" | LANG=fr_FR.UTF-8 cat)
-STATUS:         ECHEC
+Date:           $(date "+%H:%M:%S - %A %d %B %Y" | LANG=fr_FR.UTF-8 cat)
+Status:         ECHEC
 
 Le backup quotidien de la VM : $vm à échoué. 
 
@@ -88,14 +88,17 @@ EOF
 
 
     log "[$vm] : Vérification du bon nombre de sauvegarde (3 sauvegardes maximun)"
-    count=$(find "$DIR" -maxdepth 1 -mindepth 1 -type d | wc -l)
-    if (( count >= 4 ))
+    mapfile -t nb_buckets < <(find "$DIR" -maxdepth 1 -mindepth 1 -type d -printf '%f\n' | sed -E 's/(_old)+$//' | sort -n | uniq)
+    count=${#nb_buckets[@]}
+    if (( count >= 3 ))
     then
-        oldest=$(find "$DIR" -maxdepth 1 -mindepth 1 -type d -printf '%T@|%f\n' | sort -n | head -n1 | cut -d'|' -f2-)
+        oldest=$(find "$DIR" -maxdepth 1 -mindepth 1 -type d -printf '%T@|%f\n' | sed -E 's/(_old)+$//' | sort -n | head -n1 | cut -d'|' -f2-)
 
         log "[$vm] : Suppression du dossier le plus vieux pour ne garder que 3 semaines de sauvegardes"
         log "[$vm] : Suppression du dossier $oldest"
         rm -rf "${DIR:?}/${oldest:?}"
+        rm -rf "${DIR:?}/${oldest:?}"_old*
+
     fi
 
     log "[$vm] : Fin de la procédure de la backup pour la VM $vm"
