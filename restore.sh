@@ -72,6 +72,7 @@ echo ""
 
 weeks_display=()
 weeks_paths=()
+bucket_name=()
 
 # =========================
 # CONSTRUCTION DES SEMAINES A PARTIR DES BUCKETS
@@ -90,6 +91,7 @@ for f in "$DIR/$vm_chose"/*; do
 
     weeks_display+=("$initial_modif → $last_modif")
     weeks_paths+=("$checkpoint_dir")
+    bucket_name+=("$f")
 done
 
 # =========================
@@ -97,18 +99,26 @@ done
 # =========================
 echo "Choix de la période à restaurer:"
 echo "--------------------"
-week_choice=$(printf "%s\n" "${weeks_display[@]}" | gum choose) || exit 1
-echo "Période choisie: $week_choice"
-echo ""
 
+bucket_choices=()
+
+for i in "${!weeks_display[@]}"; do
+    bucket_choices+=("$(basename "${bucket_name[$i]}") : ${weeks_display[$i]}")
+done
+
+bucket_chose=$(printf "%s\n" "${bucket_choices[@]}" | gum choose) || exit 1
 
 selected_dir=""
 
-for i in "${!weeks_display[@]}"; do
-    [[ "${weeks_display[$i]}" == "$week_choice" ]] && selected_dir="${weeks_paths[$i]}"
+for i in "${!bucket_choices[@]}"
+do
+    if [[ "${bucket_choices[$i]}" == "$bucket_chose" ]]; then
+        selected_dir="${weeks_paths[$i]}"
+        break
+    fi
 done
 
-echo "$selected_dir"
+# echo "$selected_dir"
 
 # =========================
 # CONSTRUCTION DES FICHIERS AVEC DATE
