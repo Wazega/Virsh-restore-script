@@ -3,6 +3,13 @@
 -set euo pipefail
 
 # =========================
+# VARIABLE GLOBALE
+# =========================
+default_qcow2="/data"
+
+
+
+# =========================
 # VéRIFICATION LANCEMENT EN ROOT
 # =========================
 if [ "$EUID" -ne 0 ]; then

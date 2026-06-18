@@ -2,7 +2,9 @@
 
 set -euo pipefail
 
-
+# =========================
+# VARIABLE GLOBALE
+# =========================
 LOG_FILE="/var/log/backup.log"
 PARENT_DIR="/mnt/nas1"
 REMOTE_DIR="/volume1/SCADA1"
@@ -10,6 +12,10 @@ IP="10.100.50.1"
 DEST_MAIL="gabin.dubois@spikeelabs.fr"
 # "-c gabin.dubois@spikeelabs.fr,cc2@example.com mailfinal@example.com"
 
+
+# =========================
+# FONCTION POUR TOUT LOG
+# =========================
 log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOG_FILE"
 }
