@@ -67,13 +67,14 @@ do
     mkdir -p "$DIR/$bucket_id"
 
     log "[$vm] : Réalisation de la backup pour $vm"
-    virtnbdbackup -d "$vm" -l auto -o "$DIR/$bucket_id" --compress >> "$LOG_FILE" 2>&1
+    virtnbdbackup -d "$vm" -l auto -o "$DIR/$bucket_id" --compress --noprogress >> "$LOG_FILE" 2>&1
 
     # ========================
     # Vérifie qu'il n'y a pas eu d'erreur
     # ========================
     if [ $? -ne 0 ]
     then
+        error=$(tail -n 10 "$LOG_FILE")
         log "ERREUR: virtnbdbackup a échoué pour VM=$vm"
         MAIL_CONTENT=$(cat <<EOF
 SRV:            $HOSTNAME
@@ -84,6 +85,9 @@ Status:         ECHEC
 Le backup quotidien de la VM : $vm à échoué. 
 
 Besoin d'une intervention humaine afin d'éviter de compromettre toutes les autres sauvegardes.
+
+Erreur: 
+$error
 EOF
 )
         echo "$MAIL_CONTENT" | mail -s "BACKUP $vm ÉCHOUÉ" $DEST_MAIL
