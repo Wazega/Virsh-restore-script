@@ -20,19 +20,34 @@ log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOG_FILE"
 }
 
+HOSTNAME=$(hostname)
+
 
 log "NAS1 mount on $PARENT_DIR"
 if ! mountpoint -q "$PARENT_DIR"
 then
-    mount -t nfs "$IP":"$REMOTE_DIR" "$PARENT_DIR"
+    if ! ERROR=$(mount -t nfs "$IP:$REMOTE_DIR" "$PARENT_DIR" 2>&1)
+    then
+        log "ERREUR: Impossible de monter le dossier $IP:$REMOTE_DIR sur $PARENT_DIR"
+        log "$ERROR"
+        MAIL_CONTENT=$(cat <<EOF
+SRV:            $HOSTNAME
+Date:           $(date "+%H:%M:%S - %A %d %B %Y" | LANG=fr_FR.UTF-8 cat)
+
+Impossibler de monter le dossier $IP:$REMOTE_DIR sur $PARENT_DIR
+
+Erreur: 
+$ERROR
+EOF
+)
+        echo "$MAIL_CONTENT" | mail -s "Montage impossible" $DEST_MAIL
+    fi
 fi
 
 # ========================
 # Liste VM disponible sur l'host
 # ========================
 source /etc/backup/vm-list.conf
-
-HOSTNAME=$(hostname)
 
 if [[ -z "${VM_MAP[$HOSTNAME]+x}" ]]; then
   echo "Hostname inconnu: $HOSTNAME"
