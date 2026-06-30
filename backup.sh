@@ -30,6 +30,7 @@ then
     then
         log "ERREUR: Impossible de monter le dossier $IP:$REMOTE_DIR sur $PARENT_DIR"
         log "$ERROR"
+        log "Arrêt du script de backup"
         MAIL_CONTENT=$(cat <<EOF
 SRV:            $HOSTNAME
 Date:           $(date "+%H:%M:%S - %A %d %B %Y" | LANG=fr_FR.UTF-8 cat)
@@ -41,6 +42,7 @@ $ERROR
 EOF
 )
         echo "$MAIL_CONTENT" | mail -s "Montage impossible" $DEST_MAIL
+        exit 1
     fi
 fi
 
@@ -101,7 +103,8 @@ Le backup quotidien de la VM : $vm à échoué.
 
 Besoin d'une intervention humaine afin d'éviter de compromettre toutes les autres sauvegardes.
 
-Erreur: 
+Erreur:
+ 
 $error
 EOF
 )
