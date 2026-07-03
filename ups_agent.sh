@@ -83,10 +83,10 @@ low_batterie () {
     while :
         do
         status_ups1=$(upsc UPS1 ups.status 2>/dev/null)
-        charge_ups1=$(upsc UPS1 battery.charge 2>/dev/null)
+        charge_ups1=$(upsc UPS1 battery.runtime 2>/dev/null)
 
         status_ups2=$(upsc UPS2 ups.status 2>/dev/null)
-        charge_ups2=$(upsc UPS2 battery.charge 2>/dev/null)
+        charge_ups2=$(upsc UPS2 battery.runtime 2>/dev/null)
 
         # UPS 1 -> LOWBATT
         # UPS 2 -> LOWBATT
@@ -115,10 +115,10 @@ online () {
     while :
     do
         status_ups1=$(upsc UPS1 ups.status 2>/dev/null)
-        charge_ups1=$(upsc UPS1 battery.charge 2>/dev/null)
+        charge_ups1=$(upsc UPS1 battery.runtime 2>/dev/null)
 
         status_ups2=$(upsc UPS2 ups.status 2>/dev/null)
-        charge_ups2=$(upsc UPS2 battery.charge 2>/dev/null)
+        charge_ups2=$(upsc UPS2 battery.runtime 2>/dev/null)
 
         # UPS 1 -> Online | UPS 1 -> -
         # UPS 2 -> -      | UPS 2 -> Online
@@ -134,7 +134,7 @@ online () {
 
         # UPS 1 -> ONLINE
         # UPS 2 -> ONLINE
-        if [[ ( "$status_ups1" == *OL*  && "$charge_ups1" -gt 40 ) || ( "$status_ups2" == *OL* && "$charge_ups2" -gt 40 ) ]]
+        if [[ ( "$status_ups1" == *OL*  && "$charge_ups1" -gt 2400 ) || ( "$status_ups2" == *OL* && "$charge_ups2" -gt 2400 ) ]]
         then
             log "Au moins un UPS est ONLINE avec une charge > 40 %, redémarrage des VMs"
             log "Redémarrage des VMs"
