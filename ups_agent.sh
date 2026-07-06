@@ -25,39 +25,6 @@ check_flag () {
 
 
 stop_vm () {
-    virsh -c qemu:///system list --all --name | while read -r vm
-    do
-        [ -z "$vm" ] && continue
-
-        # Vérifie que la VM est démarrée
-        if virsh -c qemu:///system domstate "$vm" | grep -q running
-        then
-            i=0
-            log "Arrêt de $vm"
-            virsh -c qemu:///system shutdown "$vm"
-
-            while virsh -c qemu:///system domstate "$vm" | grep -q running
-            do
-                log "$vm en train de shutdown..."
-                sleep 2
-                i=$((i+1))
-                if [[ $i == 10 ]]
-                then
-                    virsh -c qemu:///system destroy "$vm"
-                fi
-            done
-
-            log "$vm arrêtée"
-        fi
-    done
-}
-
-
-
-
-
-
-stop_vm () {
     local vms running_vms=()
     local max_wait=180   # 3 minutes en secondes
     local interval=5     # fréquence de vérification
