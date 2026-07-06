@@ -2,7 +2,7 @@
 
 LOG_FILE=/var/log/ups_monitor.log
 FLAG="/tmp/UPS_LB"
-
+LOCK_FILE="/tmp/ups_agent.lock"
 
 log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOG_FILE"
@@ -111,34 +111,30 @@ start_vm () {
 
 low_batterie () {
 
-    while :
-        do
-        status_ups1=$(upsc UPS1 ups.status 2>/dev/null)
-        charge_ups1=$(upsc UPS1 battery.runtime 2>/dev/null)
+    status_ups1=$(upsc UPS1 ups.status 2>/dev/null)
+    charge_ups1=$(upsc UPS1 battery.runtime 2>/dev/null)
 
-        status_ups2=$(upsc UPS2 ups.status 2>/dev/null)
-        charge_ups2=$(upsc UPS2 battery.runtime 2>/dev/null)
+    status_ups2=$(upsc UPS2 ups.status 2>/dev/null)
+    charge_ups2=$(upsc UPS2 battery.runtime 2>/dev/null)
 
-        # UPS 1 -> LOWBATT
-        # UPS 2 -> LOWBATT
-        if [[ "$status_ups1" == *LB* && "$status_ups2" == *LB* ]]
-        then
-            log "État critique les deux UPS sont en Low Battery"
-            log "Arrêt des VMs"
-            stop_vm
-            exit 1
-        fi
+    # UPS 1 -> LOWBATT
+    # UPS 2 -> LOWBATT
+    if [[ "$status_ups1" == *LB* && "$status_ups2" == *LB* ]]
+    then
+        log "État critique les deux UPS sont en Low Battery"
+        log "Arrêt des VMs"
+        stop_vm
+        exit 1
+    fi
 
-        # UPS 1 -> -        |  UPS 1 -> LOWBATT
-        # UPS 2 -> LOWBATT  |  UPS 2 -> -
-        if [[ ! ( "$status_ups1" == *LB* && "$status_ups2" == *LB* ) ]]; then
-            log "Seul un des deux UPS est en Low Battery"
-            log "Fin du script, mais conservation du flag"
-            exit 1
-        fi
+    # UPS 1 -> -        |  UPS 1 -> LOWBATT
+    # UPS 2 -> LOWBATT  |  UPS 2 -> -
+    if [[ ! ( "$status_ups1" == *LB* && "$status_ups2" == *LB* ) ]]; then
+        log "Seul un des deux UPS est en Low Battery"
+        log "Fin du script, mais conservation du flag"
+        exit 1
+    fi
 
-        sleep 2
-    done
 }
 
 
@@ -152,31 +148,38 @@ online () {
         status_ups2=$(upsc UPS2 ups.status 2>/dev/null)
         charge_ups2=$(upsc UPS2 battery.runtime 2>/dev/null)
 
-        # UPS 1 -> Online | UPS 1 -> -
-        # UPS 2 -> -      | UPS 2 -> Online
-        if [[ "$status_ups1" != *LB* && "$status_ups2" != *LB* ]]; then
-            if [ -f "/tmp/UPS_LB" ]
-            then
-                log "Les UPS ne sont plus en Low Battery"
-                log "Suppression du flag"
-                rm -rf "$FLAG"
-                exit 1
-            fi
+        # UPS 1 -> LB     | UPS 1 -> -
+        # UPS 2 -> -      | UPS 2 -> LB
+        if [[ "$status_ups1" == *LB* || "$status_ups2" == *LB* ]]; then
+            log "Au moins un UPS est en Low Battery, flag conservé, pas de redémarrage"
+            [ -f "$FLAG" ] || touch "$FLAG"
+            exit 1
         fi
 
-        # UPS 1 -> ONLINE
-        # UPS 2 -> ONLINE
-        if [[ ( "$status_ups1" == *OL*  && "$charge_ups1" -gt 2400 ) || ( "$status_ups2" == *OL* && "$charge_ups2" -gt 2400 ) ]]
+        if [ -f "$FLAG" ]; then
+            log "Les deux UPS ne sont plus en Low Battery, suppression du flag"
+            rm -f "$FLAG"
+        fi
+
+        # UPS 1 -> ONLINE && runtime > 2400s
+        # UPS 2 -> ONLINE && runtime > 2400s
+        if [[ -n "$charge_ups1" && -n "$charge_ups2" && "$charge_ups1" -gt 2400 && "$charge_ups2" -gt 2400 ]]
         then
-            log "Au moins un UPS est ONLINE avec une charge > 40 %, redémarrage des VMs"
-            log "Redémarrage des VMs"
+            log "Les deux UPS sont rechargés (>2400s de runtime), redémarrage des VMs"
             start_vm
             exit 1
         fi
 
+        log "En attente de charge suffisante (UPS1: ${charge_ups1:-?}s, UPS2: ${charge_ups2:-?}s)"
         sleep 2
     done
 }
+
+
+
+# Mise en place d'un verrou pour éviter duplication
+exec 200>"$LOCK_FILE"
+flock -w 200 200 || { log "Verrou non obtenu pour $UPSNAME après 60s, exécution ignorée"; exit 1; }
 
 
 
