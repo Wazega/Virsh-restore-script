@@ -163,7 +163,7 @@ online () {
 
         # UPS 1 -> ONLINE && runtime > 2400s
         # UPS 2 -> ONLINE && runtime > 2400s
-        if [[ -n "$charge_ups1" && -n "$charge_ups2" && "$charge_ups1" -gt 2400 && "$charge_ups2" -gt 2400 ]]
+        if [[ -n "$charge_ups1" && -n "$charge_ups2" && "$charge_ups1" -gt 4000 && "$charge_ups2" -gt 4000 ]]
         then
             log "Les deux UPS sont rechargés (>2400s de runtime), redémarrage des VMs"
             start_vm
@@ -179,7 +179,7 @@ online () {
 
 # Mise en place d'un verrou pour éviter duplication
 exec 200>"$LOCK_FILE"
-flock -w 200 200 || { log "Verrou non obtenu pour $UPSNAME après 60s, exécution ignorée"; exit 1; }
+flock -w 200 200 || { log "Verrou non obtenu pour $UPSNAME après 200s, exécution ignorée"; exit 1; }
 
 
 
