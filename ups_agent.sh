@@ -194,10 +194,8 @@ monitore_onbatt () {
         fi
 
         # État réel confirmé en direct, pas de déduction par flag
-        if [[ "$status_ups1" == *OB* && "$status_ups2" == *OB* ]]
+        if [[ "$status_ups1" != *OB* && "$status_ups2" != *OB* ]]
         then
-            log "State : 2 UPS OB confirmés"
-        else
             log "Un seul UPS OB, rien à faire pour l'instant"
             log "PID : $$ --  fin  -> $UPSNAME"
             exit 0
