@@ -9,7 +9,8 @@ FLAG_UPS1_LOWBATT="/tmp/UPS1_LOWBATT"
 FLAG_UPS2_LOWBATT="/tmp/UPS2_LOWBATT"
 FLAG_VM_SHUTDOWN="/tmp/VM_SHUTDOWN"
 
-
+UPS1="ups1@10.100.10.101"
+UPS2="ups2@10.100.10.101"
 
 log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOG_FILE"
@@ -117,11 +118,11 @@ online () {
     i=0
     while :
     do
-        status_ups1=$(upsc UPS1 ups.status 2>/dev/null)
-        runtime_ups1=$(upsc UPS1 battery.runtime 2>/dev/null)
+        status_ups1=$(upsc $UPS1 ups.status 2>/dev/null)
+        runtime_ups1=$(upsc $UPS1 battery.runtime 2>/dev/null)
 
-        status_ups2=$(upsc UPS2 ups.status 2>/dev/null)
-        runtime_ups2=$(upsc UPS2 battery.runtime 2>/dev/null)
+        status_ups2=$(upsc $UPS2 ups.status 2>/dev/null)
+        runtime_ups2=$(upsc $UPS2 battery.runtime 2>/dev/null)
 
         # Si l'un des deux repasse sur batterie pendant l'attente de recharge, on cède la main
         if [[ "$status_ups1" == *OB* || "$status_ups2" == *OB* ]]
@@ -179,11 +180,11 @@ monitore_onbatt () {
     i=0
     while :
     do
-        status_ups1=$(upsc UPS1 ups.status 2>/dev/null)
-        runtime_ups1=$(upsc UPS1 battery.runtime 2>/dev/null)
+        status_ups1=$(upsc $UPS1 ups.status 2>/dev/null)
+        runtime_ups1=$(upsc $UPS1 battery.runtime 2>/dev/null)
 
-        status_ups2=$(upsc UPS2 ups.status 2>/dev/null)
-        runtime_ups2=$(upsc UPS2 battery.runtime 2>/dev/null)
+        status_ups2=$(upsc $UPS2 ups.status 2>/dev/null)
+        runtime_ups2=$(upsc $UPS2 battery.runtime 2>/dev/null)
 
         # Si l'un des deux est revenu OL, on cède la main
         if [[ "$status_ups1" == *OL* || "$status_ups2" == *OL* ]]
