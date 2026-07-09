@@ -1,25 +1,20 @@
 #!/bin/bash
 
 LOG_FILE=/var/log/ups_monitor.log
-FLAG="/tmp/UPS_LB"
+THRESHOLD_LOWBATT=3200
+THRESHOLD_RESTARTVM=4000
+
 LOCK_FILE="/tmp/ups_agent.lock"
+FLAG_1UPS_OB="/tmp/1UPS_OB"
+FLAG_1UPS_OL="/tmp/1UPS_OL"
+FLAG_UPS1_LOWBATT="/tmp/UPS1_LOWBATT"
+FLAG_UPS2_LOWBATT="/tmp/UPS2_LOWBATT"
+FLAG_VM_SHUTDOWN="/tmp/VM_SHUTDOWN"
+
+
 
 log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOG_FILE"
-}
-
-
-
-check_flag () {
-    if [ -f "/tmp/UPS_LB" ]
-    then
-        log "$UPSNAME est en Low Battery, flag déjà créer"
-        log "Vérification de l'état de la battery des 2 UPS"
-    else
-        log "$UPSNAME est en Low Battery, création du flag"
-        touch "$FLAG"
-        exit 1
-    fi
 }
 
 
@@ -83,8 +78,6 @@ stop_vm () {
 
 
 
-
-
 start_vm () {
     virsh -c qemu:///system list --all --name | while read -r vm
     do
@@ -109,88 +102,194 @@ start_vm () {
 
 
 
-low_batterie () {
-
-    status_ups1=$(upsc UPS1 ups.status 2>/dev/null)
-    charge_ups1=$(upsc UPS1 battery.runtime 2>/dev/null)
-
-    status_ups2=$(upsc UPS2 ups.status 2>/dev/null)
-    charge_ups2=$(upsc UPS2 battery.runtime 2>/dev/null)
-
-    # UPS 1 -> LOWBATT
-    # UPS 2 -> LOWBATT
-    if [[ "$status_ups1" == *LB* && "$status_ups2" == *LB* ]]
-    then
-        log "État critique les deux UPS sont en Low Battery"
-        log "Arrêt des VMs"
-        stop_vm
-        exit 1
-    fi
-
-    # UPS 1 -> -        |  UPS 1 -> LOWBATT
-    # UPS 2 -> LOWBATT  |  UPS 2 -> -
-    if [[ ! ( "$status_ups1" == *LB* && "$status_ups2" == *LB* ) ]]; then
-        log "Seul un des deux UPS est en Low Battery"
-        log "Fin du script, mais conservation du flag"
-        exit 1
-    fi
-
+manage_flag () {
+    case "$1" in
+    CREATE)
+        if [ ! -f "$2" ]
+        then
+            touch "$2"
+            log "Création du flag $2"
+        fi
+        ;;
+    REMOVE)
+        if [ -f "$2" ]
+        then
+            rm -f "$2"
+            log "Suppression du flag $2"
+        fi
+        ;;
+    esac
 }
 
 
 
 online () {
+    i=0
     while :
     do
         status_ups1=$(upsc UPS1 ups.status 2>/dev/null)
-        charge_ups1=$(upsc UPS1 battery.runtime 2>/dev/null)
+        runtime_ups1=$(upsc UPS1 battery.runtime 2>/dev/null)
 
         status_ups2=$(upsc UPS2 ups.status 2>/dev/null)
-        charge_ups2=$(upsc UPS2 battery.runtime 2>/dev/null)
+        runtime_ups2=$(upsc UPS2 battery.runtime 2>/dev/null)
 
-        # UPS 1 -> LB     | UPS 1 -> -
-        # UPS 2 -> -      | UPS 2 -> LB
-        if [[ "$status_ups1" == *LB* || "$status_ups2" == *LB* ]]; then
-            log "Au moins un UPS est en Low Battery, flag conservé, pas de redémarrage"
-            [ -f "$FLAG" ] || touch "$FLAG"
-            exit 1
-        fi
 
-        if [ -f "$FLAG" ]; then
-            log "Les deux UPS ne sont plus en Low Battery, suppression du flag"
-            rm -f "$FLAG"
-        fi
-
-        # UPS 1 -> ONLINE && runtime > 2400s
-        # UPS 2 -> ONLINE && runtime > 2400s
-        if [[ -n "$charge_ups1" && -n "$charge_ups2" && "$charge_ups1" -gt 4000 && "$charge_ups2" -gt 4000 ]]
+        # 1 UPS ONLINE - 2e ups en train de passer OL
+        if [[ -f "$FLAG_1UPS_OB" && -f "$FLAG_1UPS_OL" ]]
         then
-            log "Les deux UPS sont rechargés (>2400s de runtime), redémarrage des VMs"
-            start_vm
-            exit 1
+            log "State : 2 UPS OL"
+            manage_flag "REMOVE" "$FLAG_1UPS_OB"
+            manage_flag "REMOVE" "$FLAG_1UPS_OL"
+
+        # 1 UPS OB - 2e ups en train de passer OL
+        elif [[ -f "$FLAG_1UPS_OB" && ! -f "$FLAG_1UPS_OL" ]]
+        then
+            log "State : 1 UPS OL | 1 UPS OB"
+            manage_flag "CREATE" "$FLAG_1UPS_OL"
+            log "PID : $$ --  fin  -> $UPSNAME"
+            exit 0
         fi
 
-        log "En attente de charge suffisante (UPS1: ${charge_ups1:-?}s, UPS2: ${charge_ups2:-?}s)"
+
+        if [[ ! -f "$FLAG_VM_SHUTDOWN" ]]
+        then
+            log "VM déjà en marche, rien à faire"
+            log "PID : $$ --  fin  -> $UPSNAME"
+            exit 0
+        fi
+
+        # UPS1 en enough batt
+        if [[ -n $runtime_ups1 && $runtime_ups1 -gt $THRESHOLD_RESTARTVM ]]
+        then
+            manage_flag "REMOVE" "$FLAG_UPS1_LOWBATT" 
+        fi
+
+        # UPS2 en low batt
+        if [[ -n $runtime_ups2 && $runtime_ups2 -gt $THRESHOLD_RESTARTVM ]]
+        then
+            manage_flag "REMOVE" "$FLAG_UPS2_LOWBATT" 
+        fi
+
+        # 2 UPS avec assez de batterie 
+        if [[ -n $runtime_ups1 && $runtime_ups1 -gt $THRESHOLD_RESTARTVM && -n $runtime_ups2 && $runtime_ups2 -gt $THRESHOLD_RESTARTVM ]]
+        then
+            log "État stable les deux UPS ont assez de batterie"
+            log "Lancemenet des VMs"
+            manage_flag "REMOVE" "$FLAG_VM_SHUTDOWN"
+            start_vm
+            log "PID : $$ --  fin  -> $UPSNAME"
+            exit 0
+        fi
+        
+        if (( $i >= 60 ))
+        then
+            i=0
+            log "En attente de batterie suffisante pour lancer les VMs"
+            log "UPS1 state : $status_ups1 | runtime : $runtime_ups1"
+            log "UPS2 state : $status_ups2 | runtime : $runtime_ups2"
+        fi
+        ((++i))
         sleep 2
     done
 }
 
 
 
+monitore_onbatt () {
+    i=0
+    while :
+    do
+        status_ups1=$(upsc UPS1 ups.status 2>/dev/null)
+        runtime_ups1=$(upsc UPS1 battery.runtime 2>/dev/null)
+
+        status_ups2=$(upsc UPS2 ups.status 2>/dev/null)
+        runtime_ups2=$(upsc UPS2 battery.runtime 2>/dev/null)
+        
+        # TMP
+        log "UPS1 : $status_ups1 - $runtime_ups1"
+        log "UPS2 : $status_ups2 - $runtime_ups2"
+
+        if [[ -f "$FLAG_1UPS_OL" ]]
+        then
+            manage_flag "REMOVE" "$FLAG_1UPS_OL"
+        fi
+
+        # 1 UPS ONLINE - 2e ups en train de passer OB
+        if [[ -f "$FLAG_1UPS_OB" ]]
+        then
+            log "State : 2 UPS OB"
+
+        # 1 UPS OL - 2e ups en train de passer OB
+        else
+            log "State : 1 UPS OL | 1 UPS OB"
+            manage_flag "CREATE" "$FLAG_1UPS_OB"
+            log "PID : $$ --  fin  -> $UPSNAME"
+            exit 0
+        fi
+
+        if [[ ( -n $status_ups1 && $status_ups1 == *OL* ) || ( -n $status_ups2 && $status_ups2 == *OL* ) ]]
+        then
+            log "Un des UPS est de retour en ligne"
+            log "PID : $$ --  fin  -> $UPSNAME"
+            exit 0
+        fi
+
+
+        # UPS1 en low batt
+        if [[ -n $runtime_ups1 && $runtime_ups1 -lt $THRESHOLD_LOWBATT ]]
+        then
+            manage_flag "CREATE" "$FLAG_UPS1_LOWBATT" 
+        fi
+
+        # UPS2 en low batt
+        if [[ -n $runtime_ups2 && $runtime_ups2 -lt $THRESHOLD_LOWBATT ]]
+        then
+            manage_flag "CREATE" "$FLAG_UPS2_LOWBATT" 
+        fi
+
+        # 2 UPS en low batt
+        if [[ -n $runtime_ups1 && $runtime_ups1 -lt $THRESHOLD_LOWBATT && -n $runtime_ups2 && $runtime_ups2 -lt $THRESHOLD_LOWBATT ]]
+        then
+            log "État critique les deux UPS sont en Low Battery"
+            log "Arrêt des VMs"
+            manage_flag "CREATE" "$FLAG_VM_SHUTDOWN"
+            stop_vm
+            log "PID : $$ --  fin  -> $UPSNAME"
+            exit 0
+        fi
+
+        if (( $i >= 60 ))
+        then
+            i=0
+            log "UPS1 state : $status_ups1 | runtime : $runtime_ups1"
+            log "UPS2 state : $status_ups2 | runtime : $runtime_ups2"
+        fi
+        ((++i))
+        sleep 2
+    done
+}
+
+
+
+
+
+log "PID : $$ -- début -> $UPSNAME"
 # Mise en place d'un verrou pour éviter duplication
 exec 200>"$LOCK_FILE"
-flock -w 200 200 || { log "Verrou non obtenu pour $UPSNAME après 200s, exécution ignorée"; exit 1; }
+flock -w 200 200 || { log "Verrou non obtenu pour $UPSNAME après 200s, exécution ignorée"; log "PID : $$ --  fin  -> $UPSNAME"; exit 0; }
 
 
 
 case "$NOTIFYTYPE" in
     ONLINE)
         echo "$UPSNAME est passé en ONLINE"
+        log "$UPSNAME est passé en ONLINE"
         online
         ;;
-    LOWBATT)
-        echo "$UPSNAME est passé en LOW BATTERY"
-        check_flag
-        low_batterie
+    ONBATT)
+        echo "$UPSNAME est passé en BATTERY"
+        log "$UPSNAME est passé en BATTERY"
+        # check_flag
+        monitore_onbatt
         ;;
 esac
