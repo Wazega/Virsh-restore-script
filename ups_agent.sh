@@ -185,10 +185,6 @@ monitore_onbatt () {
         status_ups2=$(upsc UPS2 ups.status 2>/dev/null)
         runtime_ups2=$(upsc UPS2 battery.runtime 2>/dev/null)
 
-        # TMP
-        log "UPS1 : $status_ups1 - $runtime_ups1"
-        log "UPS2 : $status_ups2 - $runtime_ups2"
-
         # Si l'un des deux est revenu OL, on cède la main
         if [[ "$status_ups1" == *OL* || "$status_ups2" == *OL* ]]
         then
